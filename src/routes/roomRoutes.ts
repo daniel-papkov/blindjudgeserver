@@ -1,0 +1,652 @@
+// src/routes/roomRoutes.ts
+import express, { Response } from "express";
+import { v4 as uuidv4 } from "uuid";
+import bcrypt from "bcrypt";
+import { Room } from "../models/room";
+import { User } from "../models/user";
+import { authenticateToken } from "../middleware/auth";
+import { AuthRequest } from "../types/auth";
+import { IRoom } from "../types/room";
+import { openaiService } from "../services/openaiService";
+import { APILimiter } from "../middleware/rateLimiter";
+import { ChatSession } from "../models/chatSession";
+import { RequestHandler } from "express";
+
+type Participant = IRoom["participants"][number];
+
+type RoomRequestHandler = RequestHandler<{ roomId: string }, any, any>;
+
+const router = express.Router();
+
+// Types for request parameters and body
+interface CreateRoomBody {
+  guidingQuestion: string;
+  password: string;
+}
+
+interface RoomParams {
+  roomId: string;
+}
+
+interface JoinRoomBody {
+  password: string;
+}
+
+interface SubmitConclusionBody {
+  conclusion: string;
+}
+
+const getChatSession = async (roomId: string, userId: string) => {
+  let chatSession = await ChatSession.findOne({
+    roomId,
+    userId,
+  });
+
+  if (!chatSession) {
+    chatSession = new ChatSession({
+      id: uuidv4(),
+      roomId,
+      userId,
+      messages: [],
+      status: "active",
+      created: new Date(),
+    });
+    await chatSession.save();
+  }
+
+  return chatSession;
+};
+
+// Create a new room
+router.post(
+  "/",
+  authenticateToken,
+  (req: AuthRequest<{}, {}, CreateRoomBody>, res: Response) => {
+    const { guidingQuestion, password } = req.body;
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+      return;
+    }
+
+    // First get the user to get their username
+    User.findById(req.userId)
+      .then((user) => {
+        if (!user) {
+          res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+          return null;
+        }
+
+        return bcrypt.hash(password, 10).then((hashedPassword) => {
+          const room = new Room({
+            id: uuidv4(),
+            password: hashedPassword,
+            guidingQuestion,
+            participants: [
+              {
+                userId: req.userId!,
+                username: user.username,
+                hasSubmitted: false,
+              },
+            ],
+            conclusions: [],
+            created: new Date(),
+            status: "active",
+          });
+
+          return room.save();
+        });
+      })
+      .then((room) => {
+        if (room) {
+          res.status(201).json({
+            success: true,
+            roomId: room.id,
+            message: "Room created successfully",
+          });
+        }
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          message: "Error creating room",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      });
+  }
+);
+
+// Join a room
+router.post(
+  "/:roomId/join",
+  authenticateToken,
+  (req: AuthRequest<RoomParams, {}, JoinRoomBody>, res: Response) => {
+    const { roomId } = req.params;
+    const { password } = req.body;
+
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+      return;
+    }
+
+    let foundRoom: any;
+
+    Room.findOne({ id: roomId })
+      .then((room) => {
+        if (!room) {
+          res.status(404).json({
+            success: false,
+            message: "Room not found",
+          });
+          return null;
+        }
+
+        foundRoom = room;
+        return User.findById(req.userId);
+      })
+      .then((user) => {
+        if (!user) {
+          res.status(404).json({
+            success: false,
+            message: "User not found",
+          });
+          return null;
+        }
+
+        if (!foundRoom) return null;
+
+        return bcrypt
+          .compare(password, foundRoom.password)
+          .then((isValidPassword) => {
+            if (!isValidPassword) {
+              res.status(401).json({
+                success: false,
+                message: "Invalid password",
+              });
+              return null;
+            }
+
+            // Check if user is already in the room
+            if (
+              foundRoom.participants.some(
+                (p: Participant) => p.userId === req.userId
+              )
+            ) {
+              res.status(400).json({
+                success: false,
+                message: "You are already in this room",
+              });
+              return null;
+            }
+
+            if (foundRoom.participants.length >= 2) {
+              res.status(403).json({
+                success: false,
+                message: "Room is full",
+              });
+              return null;
+            }
+
+            // Add participant with username
+            foundRoom.participants.push({
+              userId: req.userId!,
+              username: user.username,
+              hasSubmitted: false,
+            });
+
+            return foundRoom.save();
+          });
+      })
+      .then((room) => {
+        if (room) {
+          res.json({
+            success: true,
+            message: "Successfully joined room",
+          });
+        }
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          message: "Error joining room",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      });
+  }
+);
+
+//init chat for first time use
+router.post("/:roomId/chat/init", authenticateToken, (async (
+  req: AuthRequest<RoomParams>,
+  res: Response
+) => {
+  const { roomId } = req.params;
+
+  if (!req.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  try {
+    const room = await Room.findOne({ id: roomId });
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        message: "Room not found",
+      });
+      return;
+    }
+
+    const existingSession = await ChatSession.findOne({
+      roomId,
+      userId: req.userId,
+    });
+
+    if (existingSession) {
+      res.json({
+        success: true,
+        sessionId: existingSession.id,
+        messages: existingSession.messages,
+      });
+      return;
+    }
+
+    const chatSession = new ChatSession({
+      id: uuidv4(),
+      roomId,
+      userId: req.userId,
+      messages: [],
+      status: "active",
+      created: new Date(),
+    });
+
+    await chatSession.save();
+
+    res.status(201).json({
+      success: true,
+      sessionId: chatSession.id,
+      message: "Chat session initialized",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error initializing chat session",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}) as RoomRequestHandler);
+
+// Send a message in chat session
+router.post("/:roomId/chat/message", authenticateToken, APILimiter, (async (
+  req: AuthRequest<RoomParams, {}, { message: string }>,
+  res: Response
+) => {
+  const { roomId } = req.params;
+  const { message } = req.body;
+
+  if (!req.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  if (!message?.trim()) {
+    res.status(400).json({
+      success: false,
+      message: "Message cannot be empty",
+    });
+    return;
+  }
+
+  try {
+    // Get or create chat session
+    const chatSession = await getChatSession(roomId, req.userId);
+
+    // Add user message to session
+    const userMessage = {
+      role: "user" as const,
+      content: message,
+      timestamp: new Date(),
+    };
+    chatSession.messages.push(userMessage);
+
+    // Get AI response
+    const aiResponse = await openaiService.sendMessage(
+      message,
+      chatSession.messages.map(({ role, content }) => ({
+        role,
+        content,
+      }))
+    );
+
+    if (!aiResponse.success || !aiResponse.message) {
+      throw new Error(aiResponse.error || "Failed to get AI response");
+    }
+
+    // Add AI response to session
+    const assistantMessage = {
+      role: "assistant" as const,
+      content: aiResponse.message,
+      timestamp: new Date(),
+    };
+
+    chatSession.messages.push(assistantMessage);
+    await chatSession.save();
+
+    res.json({
+      success: true,
+      response: aiResponse.message,
+      messages: chatSession.messages,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error processing message",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}) as RoomRequestHandler);
+
+// Get chat history
+router.get("/:roomId/chat/history", authenticateToken, (async (
+  req: AuthRequest<RoomParams>,
+  res: Response
+) => {
+  const { roomId } = req.params;
+
+  if (!req.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  try {
+    const chatSession = await ChatSession.findOne({
+      roomId,
+      userId: req.userId,
+    });
+
+    if (!chatSession) {
+      res.status(404).json({
+        success: false,
+        message: "Chat session not found",
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      messages: chatSession.messages,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching chat history",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}) as RoomRequestHandler);
+
+// Set conclusion from chat
+router.post("/:roomId/chat/conclude", authenticateToken, (async (
+  req: AuthRequest<RoomParams>,
+  res: Response
+) => {
+  const { roomId } = req.params;
+
+  if (!req.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  try {
+    const chatSession = await ChatSession.findOne({
+      roomId,
+      userId: req.userId,
+    });
+
+    if (!chatSession) {
+      res.status(404).json({
+        success: false,
+        message: "Chat session not found",
+      });
+      return;
+    }
+
+    // Find the last AI message
+    const lastAIMessage = [...chatSession.messages]
+      .reverse()
+      .find((msg) => msg.role === "assistant");
+
+    if (!lastAIMessage) {
+      res.status(400).json({
+        success: false,
+        message: "No AI responses found in chat",
+      });
+      return;
+    }
+
+    const conclusion = lastAIMessage.content;
+
+    // Use the existing conclude endpoint logic
+    const room = await Room.findOne({ id: roomId });
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        message: "Room not found",
+      });
+      return;
+    }
+
+    const participant = room.participants.find((p) => p.userId === req.userId);
+
+    if (!participant) {
+      res.status(403).json({
+        success: false,
+        message: "You are not a participant in this room",
+      });
+      return;
+    }
+
+    if (participant.hasSubmitted) {
+      res.status(400).json({
+        success: false,
+        message: "You have already submitted a conclusion",
+      });
+      return;
+    }
+
+    room.conclusions.push({
+      userId: req.userId,
+      conclusion,
+      timestamp: new Date(),
+    });
+
+    participant.hasSubmitted = true;
+
+    const allSubmitted = room.participants.every((p) => p.hasSubmitted);
+    if (allSubmitted) {
+      room.status = "comparing";
+    }
+
+    await room.save();
+
+    res.json({
+      success: true,
+      message: "Conclusion set from last AI response",
+      isComplete: room.status === "comparing",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error setting conclusion from chat",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}) as RoomRequestHandler);
+
+// Submit conclusion
+router.post(
+  "/:roomId/conclude",
+  authenticateToken,
+  (req: AuthRequest<RoomParams, {}, SubmitConclusionBody>, res: Response) => {
+    const { roomId } = req.params;
+    const { conclusion } = req.body;
+
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+      return;
+    }
+
+    Room.findOne({ id: roomId })
+      .then((room) => {
+        if (!room) {
+          res.status(404).json({
+            success: false,
+            message: "Room not found",
+          });
+          return null;
+        }
+
+        // Check if user is in the room
+        const participant = room.participants.find(
+          (p) => p.userId === req.userId
+        );
+        if (!participant) {
+          res.status(403).json({
+            success: false,
+            message: "You are not a participant in this room",
+          });
+          return null;
+        }
+
+        // Check if user has already submitted
+        if (participant.hasSubmitted) {
+          res.status(400).json({
+            success: false,
+            message: "You have already submitted a conclusion",
+          });
+          return null;
+        }
+
+        // Add conclusion and mark as submitted
+        room.conclusions.push({
+          userId: req.userId!,
+          conclusion,
+          timestamp: new Date(),
+        });
+
+        participant.hasSubmitted = true;
+
+        // Check if all participants have submitted
+        const allSubmitted = room.participants.every((p) => p.hasSubmitted);
+        if (allSubmitted) {
+          room.status = "comparing";
+        }
+
+        return room.save();
+      })
+      .then((room) => {
+        if (room) {
+          const isComplete = room.status === "comparing";
+          res.json({
+            success: true,
+            message: "Conclusion submitted successfully",
+            isComplete,
+          });
+        }
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          message: "Error submitting conclusion",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      });
+  }
+);
+
+// Get room status
+router.get(
+  "/:roomId/status",
+  authenticateToken,
+  (req: AuthRequest<RoomParams>, res: Response) => {
+    const { roomId } = req.params;
+
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+      return;
+    }
+
+    Room.findOne({ id: roomId })
+      .then((room) => {
+        if (!room) {
+          res.status(404).json({
+            success: false,
+            message: "Room not found",
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const participant = room.participants.find(
+          (p) => p.userId === req.userId
+        );
+        if (!participant) {
+          res.status(403).json({
+            success: false,
+            message: "You are not a participant in this room",
+          });
+          return;
+        }
+
+        res.json({
+          success: true,
+          status: {
+            participantCount: room.participants.length,
+            conclusionCount: room.conclusions.length,
+            roomStatus: room.status,
+            hasSubmitted: participant.hasSubmitted,
+            participants: room.participants.map((p) => ({
+              username: p.username,
+              hasSubmitted: p.hasSubmitted,
+            })),
+          },
+        });
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          message: "Error getting room status",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      });
+  }
+);
+
+export default router;
