@@ -625,9 +625,13 @@ router.get(
           return;
         }
 
+        // Return the complete room data in the status response
         res.json({
           success: true,
           status: {
+            id: room.id,
+            guidingQuestion: room.guidingQuestion,
+            created: room.created,
             participantCount: room.participants.length,
             conclusionCount: room.conclusions.length,
             roomStatus: room.status,
@@ -636,6 +640,10 @@ router.get(
               username: p.username,
               hasSubmitted: p.hasSubmitted,
             })),
+            // Include other IRoom fields that are appropriate for clients to see
+            comparisonChatId: room.comparisonChatId,
+            finalVerdict: room.finalVerdict,
+            // Note: We might not want to include sensitive data like password
           },
         });
       })
