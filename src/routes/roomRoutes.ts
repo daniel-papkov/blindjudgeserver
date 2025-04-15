@@ -483,8 +483,9 @@ router.post("/:roomId/chat/conclude", authenticateToken, (async (
 
     participant.hasSubmitted = true;
 
+    const hasMultipleParticipants = room.participants.length >= 2;
     const allSubmitted = room.participants.every((p) => p.hasSubmitted);
-    if (allSubmitted) {
+    if (hasMultipleParticipants && allSubmitted) {
       room.status = "comparing";
     }
 
@@ -561,8 +562,10 @@ router.post(
         participant.hasSubmitted = true;
 
         // Check if all participants have submitted
+        const hasMultipleParticipants = room.participants.length >= 2;
         const allSubmitted = room.participants.every((p) => p.hasSubmitted);
-        if (allSubmitted) {
+
+        if (hasMultipleParticipants && allSubmitted) {
           room.status = "comparing";
         }
 
