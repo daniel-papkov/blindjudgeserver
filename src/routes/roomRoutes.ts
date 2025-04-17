@@ -288,6 +288,7 @@ router.post("/:roomId/chat/init", authenticateToken, (async (
 }) as RoomRequestHandler);
 
 // Send a message in chat session
+// Correct implementation: only modify the message sent to the API, not what's stored in DB
 router.post("/:roomId/chat/message", authenticateToken, APILimiter, (async (
   req: AuthRequest<RoomParams, {}, { message: string }>,
   res: Response
@@ -312,24 +313,54 @@ router.post("/:roomId/chat/message", authenticateToken, APILimiter, (async (
   }
 
   try {
+    // Get room to access guiding question
+    const room = await Room.findOne({ id: roomId });
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        message: "Room not found",
+      });
+      return;
+    }
+
     // Get or create chat session
     const chatSession = await getChatSession(roomId, req.userId);
 
-    // Add user message to session
+    // Add original user message to session
     const userMessage = {
       role: "user" as const,
-      content: message,
+      content: message, // Store the original message
       timestamp: new Date(),
     };
     chatSession.messages.push(userMessage);
 
-    // Get AI response
+    // Check if this is the first message in the chat
+    const isFirstMessage = chatSession.messages.length === 1; // Now it's 1 because we just added the message
+
+    // Prepare the message to send to the API
+    let apiMessageContent = message;
+    if (isFirstMessage && room.guidingQuestion) {
+      apiMessageContent = `We are discussing the following question: "${room.guidingQuestion}"\n\nUser's message: ${message}`;
+    }
+
+    // Get AI response with modified first message for API only
+    const apiMessages = chatSession.messages.map((msg, index) => {
+      // Only modify the last message if it's the first user message
+      if (index === chatSession.messages.length - 1 && isFirstMessage) {
+        return {
+          role: msg.role,
+          content: apiMessageContent,
+        };
+      }
+      return {
+        role: msg.role,
+        content: msg.content,
+      };
+    });
+
     const aiResponse = await openaiService.sendMessage(
-      message,
-      chatSession.messages.map(({ role, content }) => ({
-        role,
-        content,
-      }))
+      apiMessageContent,
+      apiMessages
     );
 
     if (!aiResponse.success || !aiResponse.message) {
@@ -659,5 +690,77 @@ router.get(
       });
   }
 );
+
+// Get existing chat session ID
+router.get("/:roomId/chat/session", authenticateToken, (async (
+  req: AuthRequest<RoomParams>,
+  res: Response
+) => {
+  const { roomId } = req.params;
+
+  if (!req.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+    });
+    return;
+  }
+
+  try {
+    // Find the room
+    const room = await Room.findOne({ id: roomId });
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        message: "Room not found",
+      });
+      return;
+    }
+
+    // Check if user is a participant
+    const isParticipant = room.participants.some(
+      (p) => p.userId === req.userId
+    );
+
+    if (!isParticipant) {
+      res.status(403).json({
+        success: false,
+        message: "You are not a participant in this room",
+      });
+      return;
+    }
+
+    // Check if there's an existing session for the creator
+    const creatorId = room.participants[0].userId; // Assuming the first participant is the creator
+    const creatorSession = await ChatSession.findOne({
+      roomId,
+      userId: creatorId,
+    });
+
+    if (!creatorSession) {
+      res.status(404).json({
+        success: false,
+        message: "No active chat session found for this room",
+      });
+      return;
+    }
+
+    // Return the creator's session ID for all participants to use
+    res.json({
+      success: true,
+      sessionId: creatorSession.id,
+      roomStatus: room.status,
+      guidingQuestion: room.guidingQuestion,
+    });
+  } catch (error) {
+    console.error("Error retrieving session:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error retrieving session",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}) as RoomRequestHandler);
 
 export default router;

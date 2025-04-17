@@ -24,7 +24,7 @@ export const env = cleanEnv(process.env, {
   // Rate Limiting
   MAX_TOKENS_PER_REQUEST: num({ default: 2000 }),
   MAX_CONVERSATIONS_PER_USER: num({ default: 5 }),
-  MAX_REQUESTS_PER_MINUTE: num({ default: 10 }),
+  MAX_REQUESTS_PER_MINUTE: num({ default: 20 }),
 
   // Timeouts
   CONVERSATION_TIMEOUT_MINUTES: num({ default: 30 }),

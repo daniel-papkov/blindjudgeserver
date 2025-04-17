@@ -2,7 +2,7 @@ import rateLimit from "express-rate-limit";
 import { env } from "../config/env";
 
 export const RateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 5 * 1000, // 5 seconds
   max: env.MAX_REQUESTS_PER_MINUTE,
   message: {
     success: false,
