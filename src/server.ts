@@ -1,60 +1,77 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import mongoose from "mongoose";
-import { env } from "./config/env";
-import { RateLimiter, APILimiter } from "./middleware/rateLimiter";
+import bodyParser from "body-parser";
+import { config } from "./config/config";
+import { logger } from "./utils/logger";
+import { AppError } from "./errors/AppError";
+
+// Import routes
 import authRoutes from "./routes/authRoutes";
 import roomRoutes from "./routes/roomRoutes";
 import aiRoutes from "./routes/aiRoutes";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
+// Initialize express app
 const app = express();
 
-// Middleware
+// Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
-// Apply rate limiting
-app.use("/api/", RateLimiter);
-app.use("/api/ai", aiRoutes);
+// Request logging middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`, {
+    ip: req.ip,
+    userAgent: req.get("user-agent"),
+  });
+  next();
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
+app.use("/api/ai", aiRoutes);
 
-// MongoDB connection with retry logic
-const connectWithRetry = () => {
-  mongoose
-    .connect(env.MONGODB_URI)
-    .then(() => {
-      console.log("Connected to MongoDB");
-    })
-    .catch((err) => {
-      console.error("MongoDB connection error:", err);
-      console.log("Retrying in 5 seconds...");
-      setTimeout(connectWithRetry, 5000);
+// 404 handler for undefined routes
+app.all("*", notFoundHandler);
+
+// Global error handling middleware
+app.use(errorHandler);
+
+// Connect to database and start server
+const startServer = async () => {
+  try {
+    await mongoose.connect(
+      config.database.url,
+      config.database.options as mongoose.ConnectOptions
+    );
+    logger.info("Connected to MongoDB");
+
+    const PORT = config.server.port || 3000;
+    app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
     });
+  } catch (error) {
+    logger.error("Failed to connect to MongoDB", { error });
+    process.exit(1);
+  }
 };
 
-connectWithRetry();
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception", { error: error.stack });
+  process.exit(1);
+});
 
-// Error handling middleware
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    console.error(err.stack);
-    res.status(500).json({
-      success: false,
-      message:
-        env.NODE_ENV === "development" ? err.message : "Internal Server Error",
-    });
-  }
-);
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection", { reason, promise });
+  process.exit(1);
+});
 
-const PORT = env.PORT;
-app.listen(PORT, () =>
-  console.log(`Server running in ${env.NODE_ENV} mode on port ${PORT}`)
-);
+// Start the server
+startServer();
+
+// For testing purposes
+export default app;

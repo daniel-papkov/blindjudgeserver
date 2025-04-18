@@ -58,7 +58,7 @@ class OpenAIService {
     username2: string
   ) {
     const comparisonPrompt = `
-      You are tasked with comparing two different conclusions about the following question,who is correct?. the question:
+      who gave the better answear or is more correct, you have to choose a winner. the question:
       "${guidingQuestion}"
 
       ${username1}:
