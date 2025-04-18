@@ -40,6 +40,7 @@ export const signup: RequestHandler = async (req, res) => {
       success: true,
       message: "User created successfully",
       token,
+      username: user.username,
     });
   } catch (error) {
     res.status(500).json({
@@ -83,6 +84,7 @@ export const login: RequestHandler = async (req, res) => {
       success: true,
       message: "Login successful",
       token,
+      username: user.username,
     });
   } catch (error) {
     res.status(500).json({
