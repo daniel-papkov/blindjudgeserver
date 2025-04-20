@@ -133,3 +133,38 @@ export const authValidators = {
       .required("password", "Password is required");
   }),
 };
+
+/**
+ * AI validation middleware functions
+ */
+export const aiValidators = {
+  testChat: validateBody((validator) => {
+    validator
+      .required("message", "Message is required")
+      .maxLength("message", 2000, "Message cannot exceed 2000 characters");
+  }),
+
+  testCompare: validateBody((validator) => {
+    validator
+      .required("conclusion1", "First conclusion is required")
+      .required("conclusion2", "Second conclusion is required")
+      .required("guidingQuestion", "Guiding question is required")
+      .required("username1", "First username is required")
+      .required("username2", "Second username is required")
+      .maxLength(
+        "conclusion1",
+        5000,
+        "First conclusion cannot exceed 5000 characters"
+      )
+      .maxLength(
+        "conclusion2",
+        5000,
+        "Second conclusion cannot exceed 5000 characters"
+      )
+      .maxLength(
+        "guidingQuestion",
+        500,
+        "Guiding question cannot exceed 500 characters"
+      );
+  }),
+};
