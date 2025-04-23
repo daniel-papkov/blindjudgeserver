@@ -34,7 +34,7 @@ The system leverages AI to provide impartial analysis of differing viewpoints, h
 - **MongoDB** & **Mongoose**: Database and ODM
 - **JWT**: Authentication
 - **OpenAI API**: AI-powered chat and comparison
-- ** Jest**: Unit tests
+- **Jest**: Unit tests
 
 ### Frontend
 - **React**: UI library
@@ -195,8 +195,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Daniel Papkov - papkovdaniel1@gmail.com
 
 Project Links:
-#[frontend] - [https://github.com/daniel-papkov/blindjudge]
-#[backend]  - [https://github.com/daniel-papkov/blindjudgeserver]
+#[frontend] - [https://github.com/daniel-papkov/blindjudge].
+#[backend]  - [https://github.com/daniel-papkov/blindjudgeserver].
 
 ## Acknowledgements
 
