@@ -1,7 +1,5 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} **/
 module.exports = {
+  preset: "ts-jest",
   testEnvironment: "node",
-  transform: {
-    "^.+\.tsx?$": ["ts-jest",{}],
-  },
+  clearMocks: true, // Automatically clear mock calls and instances between every test
 };
