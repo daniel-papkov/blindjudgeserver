@@ -298,392 +298,388 @@ describe("Room Routes API (/api/rooms)", () => {
         "test-user-id"
       );
     });
+  });
 
-    // POST /api/rooms/:roomId/chat/message - Send Message
-    describe("POST /api/rooms/:roomId/chat/message", () => {
-      const roomId = "chat-message-room-789";
-      const messagePayload = { message: "Hello from test!" };
+  // POST /api/rooms/:roomId/chat/message - Send Message
+  describe("POST /api/rooms/:roomId/chat/message", () => {
+    const roomId = "chat-message-room-789";
+    const messagePayload = { message: "Hello from test!" };
 
-      it("should send a message successfully (200)", async () => {
-        const successResult = {
-          success: true,
-          message: "Message sent",
-          newMessage: { role: "user", content: messagePayload.message },
-        };
-        mockRoomServiceInstance.sendMessage.mockResolvedValue(successResult);
-
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/message`)
-          .send(messagePayload)
-          .expect(200);
-
-        expect(response.body).toEqual(successResult);
-        expect(mockRoomServiceInstance.sendMessage).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId,
-          messagePayload.message
-        );
-      });
-
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/message`)
-          .set("simulate-unauthenticated", "true")
-          .send(messagePayload)
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.sendMessage).not.toHaveBeenCalled();
-      });
-
-      it("should return 400 if message payload is empty/missing (controller logic)", async () => {
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/message`)
-          .send({ message: " " }) // Send whitespace
-          .expect(400);
-        expect(response.body).toEqual({
-          success: false,
-          message: "Message cannot be empty",
-        });
-        expect(mockRoomServiceInstance.sendMessage).not.toHaveBeenCalled();
-      });
-
-      it("should return 404 if room not found by service", async () => {
-        const errorResult = { success: false, message: "Room not found" };
-        mockRoomServiceInstance.sendMessage.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/message`)
-          .send(messagePayload)
-          .expect(404);
-        expect(response.body).toEqual(errorResult);
-      });
-
-      it("should return 500 for other service errors", async () => {
-        const errorResult = {
-          success: false,
-          message: "Failed to process message",
-        };
-        mockRoomServiceInstance.sendMessage.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/message`)
-          .send(messagePayload)
-          .expect(500);
-        expect(response.body).toEqual(errorResult);
-      });
-    });
-
-    // GET /api/rooms/:roomId/chat/history - Get Chat History
-    describe("GET /api/rooms/:roomId/chat/history", () => {
-      const roomId = "history-room-abc";
-      const chatHistory = [
-        { role: "user", content: "Question" },
-        { role: "assistant", content: "Answer" },
-      ];
-
-      it("should get chat history successfully (200)", async () => {
-        const successResult = { success: true, messages: chatHistory };
-        mockRoomServiceInstance.getChatHistory.mockResolvedValue(successResult);
-
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/history`)
-          .expect("Content-Type", /json/)
-          .expect(200);
-
-        expect(response.body).toEqual(successResult);
-        expect(mockRoomServiceInstance.getChatHistory).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId
-        );
-      });
-
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/history`)
-          .set("simulate-unauthenticated", "true")
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.getChatHistory).not.toHaveBeenCalled();
-      });
-
-      it("should return 404 if chat session not found by service", async () => {
-        const errorResult = {
-          success: false,
-          message: "Chat session not found",
-        };
-        mockRoomServiceInstance.getChatHistory.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/history`)
-          .expect(404);
-        expect(response.body).toEqual(errorResult);
-      });
-
-      it("should return 500 for other service errors", async () => {
-        const errorResult = {
-          success: false,
-          message: "DB error fetching history",
-        };
-        mockRoomServiceInstance.getChatHistory.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/history`)
-          .expect(500);
-        expect(response.body).toEqual(errorResult);
-      });
-    });
-
-    // POST /api/rooms/:roomId/chat/conclude - Set Conclusion from Chat
-    describe("POST /api/rooms/:roomId/chat/conclude", () => {
-      const roomId = "conclude-chat-room-def";
-      const lastAiMessageContent = "AI conclusion text";
-      const mockChatSessionWithAi: Partial<IChatSession> = {
-        id: "session-789",
-        messages: [
-          { role: "user", content: "...", timestamp: new Date() },
-          {
-            role: "assistant",
-            content: lastAiMessageContent,
-            timestamp: new Date(),
-          },
-        ],
+    it("should send a message successfully (200)", async () => {
+      const successResult = {
+        success: true,
+        message: "Message sent",
+        newMessage: { role: "user", content: messagePayload.message },
       };
+      mockRoomServiceInstance.sendMessage.mockResolvedValue(successResult);
 
-      it("should set conclusion from last AI message successfully (200)", async () => {
-        mockRoomServiceInstance.getChatSession.mockResolvedValue(
-          mockChatSessionWithAi as IChatSession
-        );
-        const submitSuccess = {
-          success: true,
-          message: "Conclusion submitted",
-          isComplete: false,
-        };
-        mockRoomServiceInstance.submitConclusion.mockResolvedValue(
-          submitSuccess
-        );
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/message`)
+        .send(messagePayload)
+        .expect(200);
 
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/conclude`)
-          .send()
-          .expect(200);
-
-        expect(response.body).toEqual({
-          success: true,
-          message: "Conclusion set from last AI response",
-          isComplete: submitSuccess.isComplete,
-        });
-        expect(mockRoomServiceInstance.getChatSession).toHaveBeenCalledWith(
-          roomId,
-          "test-user-id"
-        );
-        expect(mockRoomServiceInstance.submitConclusion).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId,
-          lastAiMessageContent
-        );
-      });
-
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/conclude`)
-          .set("simulate-unauthenticated", "true")
-          .send()
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.getChatSession).not.toHaveBeenCalled();
-        expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
-      });
-
-      it("should return 400 if no AI message is found", async () => {
-        const mockChatSessionNoAi: Partial<IChatSession> = {
-          id: "session-000",
-          messages: [{ role: "user", content: "...", timestamp: new Date() }],
-        };
-        mockRoomServiceInstance.getChatSession.mockResolvedValue(
-          mockChatSessionNoAi as IChatSession
-        );
-
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/conclude`)
-          .send()
-          .expect(400);
-
-        expect(response.body).toEqual({
-          success: false,
-          message: "No AI responses found in chat",
-        });
-        expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
-      });
-
-      it("should return 500 if getChatSession fails", async () => {
-        const error = new Error("Failed fetching session");
-        mockRoomServiceInstance.getChatSession.mockRejectedValue(error);
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/conclude`)
-          .send()
-          .expect(500);
-        expect(response.body).toHaveProperty(
-          "message",
-          "Error setting conclusion from chat"
-        );
-        expect(response.body).toHaveProperty("error", error.message);
-      });
-
-      // Add tests for errors during the submitConclusion call (404, 403, 400, 500)
-      it("should return 403 if user is not participant (from submitConclusion)", async () => {
-        mockRoomServiceInstance.getChatSession.mockResolvedValue(
-          mockChatSessionWithAi as IChatSession
-        );
-        const submitError = {
-          success: false,
-          message: "You are not a participant in this room",
-        };
-        mockRoomServiceInstance.submitConclusion.mockResolvedValue(submitError);
-
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/chat/conclude`)
-          .send()
-          .expect(403);
-        expect(response.body).toEqual(submitError);
-      });
+      expect(response.body).toEqual(successResult);
+      expect(mockRoomServiceInstance.sendMessage).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId,
+        messagePayload.message
+      );
     });
 
-    // POST /api/rooms/:roomId/conclude - Submit Conclusion Manually
-    describe("POST /api/rooms/:roomId/conclude", () => {
-      const roomId = "manual-conclude-room-ghi";
-      const conclusionPayload = {
-        conclusion: "This is the manual conclusion.",
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/message`)
+        .set("simulate-unauthenticated", "true")
+        .send(messagePayload)
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 if message payload is empty/missing (controller logic)", async () => {
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/message`)
+        .send({ message: " " }) // Send whitespace
+        .expect(400);
+      expect(response.body).toEqual({
+        success: false,
+        message: "Message cannot be empty",
+      });
+      expect(mockRoomServiceInstance.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("should return 404 if room not found by service", async () => {
+      const errorResult = { success: false, message: "Room not found" };
+      mockRoomServiceInstance.sendMessage.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/message`)
+        .send(messagePayload)
+        .expect(404);
+      expect(response.body).toEqual(errorResult);
+    });
+
+    it("should return 500 for other service errors", async () => {
+      const errorResult = {
+        success: false,
+        message: "Failed to process message",
       };
+      mockRoomServiceInstance.sendMessage.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/message`)
+        .send(messagePayload)
+        .expect(500);
+      expect(response.body).toEqual(errorResult);
+    });
+  });
 
-      it("should submit conclusion manually successfully (200)", async () => {
-        const successResult = {
-          success: true,
-          message: "Conclusion submitted",
-          isComplete: true,
-        };
-        mockRoomServiceInstance.submitConclusion.mockResolvedValue(
-          successResult
-        );
+  // GET /api/rooms/:roomId/chat/history - Get Chat History
+  describe("GET /api/rooms/:roomId/chat/history", () => {
+    const roomId = "history-room-abc";
+    const chatHistory = [
+      { role: "user", content: "Question" },
+      { role: "assistant", content: "Answer" },
+    ];
 
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/conclude`)
-          .send(conclusionPayload)
-          .expect(200);
+    it("should get chat history successfully (200)", async () => {
+      const successResult = { success: true, messages: chatHistory };
+      mockRoomServiceInstance.getChatHistory.mockResolvedValue(successResult);
 
-        expect(response.body).toEqual(successResult);
-        expect(mockRoomServiceInstance.submitConclusion).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId,
-          conclusionPayload.conclusion
-        );
-      });
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/history`)
+        .expect("Content-Type", /json/)
+        .expect(200);
 
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/conclude`)
-          .set("simulate-unauthenticated", "true")
-          .send(conclusionPayload)
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
-      });
-
-      // Add tests for specific service errors (404, 403, 400, 500)
-      it("should return 400 if conclusion already submitted", async () => {
-        const errorResult = {
-          success: false,
-          message: "You have already submitted a conclusion",
-        };
-        mockRoomServiceInstance.submitConclusion.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .post(`/api/rooms/${roomId}/conclude`)
-          .send(conclusionPayload)
-          .expect(400);
-        expect(response.body).toEqual(errorResult);
-      });
+      expect(response.body).toEqual(successResult);
+      expect(mockRoomServiceInstance.getChatHistory).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId
+      );
     });
 
-    // GET /api/rooms/:roomId/status - Get Room Status
-    describe("GET /api/rooms/:roomId/status", () => {
-      const roomId = "status-room-jkl";
-      const roomStatus = {
-        status: "concluded",
-        participants: ["test-user-id"],
-        conclusions: {},
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/history`)
+        .set("simulate-unauthenticated", "true")
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.getChatHistory).not.toHaveBeenCalled();
+    });
+
+    it("should return 404 if chat session not found by service", async () => {
+      const errorResult = {
+        success: false,
+        message: "Chat session not found",
       };
-
-      it("should get room status successfully (200)", async () => {
-        const successResult = { success: true, status: roomStatus };
-        mockRoomServiceInstance.getRoomStatus.mockResolvedValue(successResult);
-
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/status`)
-          .expect(200);
-
-        expect(response.body).toEqual(successResult);
-        expect(mockRoomServiceInstance.getRoomStatus).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId
-        );
-      });
-
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/status`)
-          .set("simulate-unauthenticated", "true")
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.getRoomStatus).not.toHaveBeenCalled();
-      });
-
-      // Add tests for specific service errors (404, 403, 500)
-      it("should return 404 if room not found", async () => {
-        const errorResult = { success: false, message: "Room not found" };
-        mockRoomServiceInstance.getRoomStatus.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/status`)
-          .expect(404);
-        expect(response.body).toEqual(errorResult);
-      });
+      mockRoomServiceInstance.getChatHistory.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/history`)
+        .expect(404);
+      expect(response.body).toEqual(errorResult);
     });
 
-    // GET /api/rooms/:roomId/chat/session - Get Existing Chat Session ID
-    describe("GET /api/rooms/:roomId/chat/session", () => {
-      const roomId = "get-session-room-mno";
-      const sessionInfo = { sessionId: "existing-session-id", exists: true };
+    it("should return 500 for other service errors", async () => {
+      const errorResult = {
+        success: false,
+        message: "DB error fetching history",
+      };
+      mockRoomServiceInstance.getChatHistory.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/history`)
+        .expect(500);
+      expect(response.body).toEqual(errorResult);
+    });
+  });
 
-      it("should get existing session info successfully (200)", async () => {
-        const successResult = { success: true, ...sessionInfo };
-        mockRoomServiceInstance.getSessionInfo.mockResolvedValue(successResult);
+  // POST /api/rooms/:roomId/chat/conclude - Set Conclusion from Chat
+  describe("POST /api/rooms/:roomId/chat/conclude", () => {
+    const roomId = "conclude-chat-room-def";
+    const lastAiMessageContent = "AI conclusion text";
+    const mockChatSessionWithAi: Partial<IChatSession> = {
+      id: "session-789",
+      messages: [
+        { role: "user", content: "...", timestamp: new Date() },
+        {
+          role: "assistant",
+          content: lastAiMessageContent,
+          timestamp: new Date(),
+        },
+      ],
+    };
 
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/session`)
-          .expect(200);
+    it("should set conclusion from last AI message successfully (200)", async () => {
+      mockRoomServiceInstance.getChatSession.mockResolvedValue(
+        mockChatSessionWithAi as IChatSession
+      );
+      const submitSuccess = {
+        success: true,
+        message: "Conclusion submitted",
+        isComplete: false,
+      };
+      mockRoomServiceInstance.submitConclusion.mockResolvedValue(submitSuccess);
 
-        expect(response.body).toEqual(successResult);
-        expect(mockRoomServiceInstance.getSessionInfo).toHaveBeenCalledWith(
-          "test-user-id",
-          roomId
-        );
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/conclude`)
+        .send()
+        .expect(200);
+
+      expect(response.body).toEqual({
+        success: true,
+        message: "Conclusion set from last AI response",
+        isComplete: submitSuccess.isComplete,
       });
+      expect(mockRoomServiceInstance.getChatSession).toHaveBeenCalledWith(
+        roomId,
+        "test-user-id"
+      );
+      expect(mockRoomServiceInstance.submitConclusion).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId,
+        lastAiMessageContent
+      );
+    });
 
-      it("should return 401 if authentication fails (simulated)", async () => {
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/session`)
-          .set("simulate-unauthenticated", "true")
-          .expect(401);
-        expect(response.body).toHaveProperty("message", "Unauthorized");
-        expect(mockRoomServiceInstance.getSessionInfo).not.toHaveBeenCalled();
-      });
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/conclude`)
+        .set("simulate-unauthenticated", "true")
+        .send()
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.getChatSession).not.toHaveBeenCalled();
+      expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
+    });
 
-      // Add tests for specific service errors (404 room, 403 participant, 404 no session, 500)
-      it("should return 404 if no active chat session found", async () => {
-        const errorResult = {
-          success: false,
-          message: "No active chat session found for this room",
-        };
-        mockRoomServiceInstance.getSessionInfo.mockResolvedValue(errorResult);
-        const response = await request(app)
-          .get(`/api/rooms/${roomId}/chat/session`)
-          .expect(404);
-        expect(response.body).toEqual(errorResult);
+    it("should return 400 if no AI message is found", async () => {
+      const mockChatSessionNoAi: Partial<IChatSession> = {
+        id: "session-000",
+        messages: [{ role: "user", content: "...", timestamp: new Date() }],
+      };
+      mockRoomServiceInstance.getChatSession.mockResolvedValue(
+        mockChatSessionNoAi as IChatSession
+      );
+
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/conclude`)
+        .send()
+        .expect(400);
+
+      expect(response.body).toEqual({
+        success: false,
+        message: "No AI responses found in chat",
       });
+      expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
+    });
+
+    it("should return 500 if getChatSession fails", async () => {
+      const error = new Error("Failed fetching session");
+      mockRoomServiceInstance.getChatSession.mockRejectedValue(error);
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/conclude`)
+        .send()
+        .expect(500);
+      expect(response.body).toHaveProperty(
+        "message",
+        "Error setting conclusion from chat"
+      );
+      expect(response.body).toHaveProperty("error", error.message);
+    });
+
+    // Add tests for errors during the submitConclusion call (404, 403, 400, 500)
+    it("should return 403 if user is not participant (from submitConclusion)", async () => {
+      mockRoomServiceInstance.getChatSession.mockResolvedValue(
+        mockChatSessionWithAi as IChatSession
+      );
+      const submitError = {
+        success: false,
+        message: "You are not a participant in this room",
+      };
+      mockRoomServiceInstance.submitConclusion.mockResolvedValue(submitError);
+
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/chat/conclude`)
+        .send()
+        .expect(403);
+      expect(response.body).toEqual(submitError);
+    });
+  });
+
+  // POST /api/rooms/:roomId/conclude - Submit Conclusion Manually
+  describe("POST /api/rooms/:roomId/conclude", () => {
+    const roomId = "manual-conclude-room-ghi";
+    const conclusionPayload = {
+      conclusion: "This is the manual conclusion.",
+    };
+
+    it("should submit conclusion manually successfully (200)", async () => {
+      const successResult = {
+        success: true,
+        message: "Conclusion submitted",
+        isComplete: true,
+      };
+      mockRoomServiceInstance.submitConclusion.mockResolvedValue(successResult);
+
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/conclude`)
+        .send(conclusionPayload)
+        .expect(200);
+
+      expect(response.body).toEqual(successResult);
+      expect(mockRoomServiceInstance.submitConclusion).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId,
+        conclusionPayload.conclusion
+      );
+    });
+
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/conclude`)
+        .set("simulate-unauthenticated", "true")
+        .send(conclusionPayload)
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.submitConclusion).not.toHaveBeenCalled();
+    });
+
+    // Add tests for specific service errors (404, 403, 400, 500)
+    it("should return 400 if conclusion already submitted", async () => {
+      const errorResult = {
+        success: false,
+        message: "You have already submitted a conclusion",
+      };
+      mockRoomServiceInstance.submitConclusion.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .post(`/api/rooms/${roomId}/conclude`)
+        .send(conclusionPayload)
+        .expect(400);
+      expect(response.body).toEqual(errorResult);
+    });
+  });
+
+  // GET /api/rooms/:roomId/status - Get Room Status
+  describe("GET /api/rooms/:roomId/status", () => {
+    const roomId = "status-room-jkl";
+    const roomStatus = {
+      status: "concluded",
+      participants: ["test-user-id"],
+      conclusions: {},
+    };
+
+    it("should get room status successfully (200)", async () => {
+      const successResult = { success: true, status: roomStatus };
+      mockRoomServiceInstance.getRoomStatus.mockResolvedValue(successResult);
+
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/status`)
+        .expect(200);
+
+      expect(response.body).toEqual(successResult);
+      expect(mockRoomServiceInstance.getRoomStatus).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId
+      );
+    });
+
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/status`)
+        .set("simulate-unauthenticated", "true")
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.getRoomStatus).not.toHaveBeenCalled();
+    });
+
+    // Add tests for specific service errors (404, 403, 500)
+    it("should return 404 if room not found", async () => {
+      const errorResult = { success: false, message: "Room not found" };
+      mockRoomServiceInstance.getRoomStatus.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/status`)
+        .expect(404);
+      expect(response.body).toEqual(errorResult);
+    });
+  });
+
+  // GET /api/rooms/:roomId/chat/session - Get Existing Chat Session ID
+  describe("GET /api/rooms/:roomId/chat/session", () => {
+    const roomId = "get-session-room-mno";
+    const sessionInfo = { sessionId: "existing-session-id", exists: true };
+
+    it("should get existing session info successfully (200)", async () => {
+      const successResult = { success: true, ...sessionInfo };
+      mockRoomServiceInstance.getSessionInfo.mockResolvedValue(successResult);
+
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/session`)
+        .expect(200);
+
+      expect(response.body).toEqual(successResult);
+      expect(mockRoomServiceInstance.getSessionInfo).toHaveBeenCalledWith(
+        "test-user-id",
+        roomId
+      );
+    });
+
+    it("should return 401 if authentication fails (simulated)", async () => {
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/session`)
+        .set("simulate-unauthenticated", "true")
+        .expect(401);
+      expect(response.body).toHaveProperty("message", "Unauthorized");
+      expect(mockRoomServiceInstance.getSessionInfo).not.toHaveBeenCalled();
+    });
+
+    // Add tests for specific service errors (404 room, 403 participant, 404 no session, 500)
+    it("should return 404 if no active chat session found", async () => {
+      const errorResult = {
+        success: false,
+        message: "No active chat session found for this room",
+      };
+      mockRoomServiceInstance.getSessionInfo.mockResolvedValue(errorResult);
+      const response = await request(app)
+        .get(`/api/rooms/${roomId}/chat/session`)
+        .expect(404);
+      expect(response.body).toEqual(errorResult);
     });
   });
 });
