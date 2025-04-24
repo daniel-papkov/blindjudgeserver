@@ -55,7 +55,6 @@ Blind Judge follows a layered architecture pattern:
 ## Project Architecture
 ```mermaid
 flowchart TD
-    %% Client Side
     subgraph Client ["Frontend (React + TypeScript)"]
         direction TB
         subgraph Components ["UI Components"]
@@ -81,7 +80,6 @@ flowchart TD
         State --> Services
     end
     
-    %% Server Side
     subgraph Server ["Backend (Node.js + Express + TypeScript)"]
         direction TB
         subgraph Routes ["Routes Layer"]
@@ -130,35 +128,29 @@ flowchart TD
         BLogic --> ExternalAPIs
     end
     
-    %% External Services
     subgraph ExternalServices ["External Services"]
         MongoDB[(MongoDB Database)]
         OpenAI[OpenAI API]
         JWT[JWT Authentication]
     end
     
-    %% Cross-connections
-    Services -- HTTP/API Requests --> Routes
-    DataModels -- Database Operations --> MongoDB
-    ExternalAPIs[External API Integration] -- AI Requests --> OpenAI
-    AuthService2 -- Token Management --> JWT
+    Services --> Routes
+    DataModels --> MongoDB
+    ExternalAPIs[External API Integration] --> OpenAI
+    AuthService2 --> JWT
     
-    %% Data Flow
-    User((User)) -- Interacts with --> Components
+    User((User)) --> Components
     
-    %% Flow examples
-    User -- 1. Creates Room --> Room
-    Room -- 2. API Call --> RoomService
-    RoomService -- 3. HTTP Request --> RoomRoutes
-    RoomRoutes -- 4. Authenticates --> AuthMiddleware
-    AuthMiddleware -- 5. Validates --> Validation
-    Validation -- 6. Processes --> RoomController
-    RoomController -- 7. Business Logic --> RoomService2
-    RoomService2 -- 8. Data Access --> RoomRepo
-    RoomRepo -- 9. Database Operations --> RoomModel
-    RoomModel -- 10. Stores Data --> MongoDB
+    Room --> RoomService
+    RoomService --> RoomRoutes
+    RoomRoutes --> AuthMiddleware
+    AuthMiddleware --> Validation
+    Validation --> RoomController
+    RoomController --> RoomService2
+    RoomService2 --> RoomRepo
+    RoomRepo --> RoomModel
+    RoomModel --> MongoDB
     
-    %% Styles
     classDef frontend fill:#61dafb,stroke:#61dafb,color:#000
     classDef backend fill:#68a063,stroke:#68a063,color:#fff
     classDef external fill:#f9a825,stroke:#f9a825,color:#000
