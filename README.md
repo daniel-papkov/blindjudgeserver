@@ -52,6 +52,124 @@ Blind Judge follows a layered architecture pattern:
 - **Repositories Layer**: Manages data access operations
 - **Models Layer**: Defines data structures and database schemas
 
+## Project Architecture
+```mermaid
+flowchart TD
+    %% Client Side
+    subgraph Client ["Frontend (React + TypeScript)"]
+        direction TB
+        subgraph Components ["UI Components"]
+            Auth[Authentication Components]
+            Chat[Chat Interface]
+            Room[Room Components]
+            Common[Common Components]
+        end
+        
+        subgraph State ["State Management"]
+            Context[Context API]
+            CustomHooks[Custom Hooks]
+        end
+        
+        subgraph Services ["Frontend Services"]
+            AuthService[Auth Service]
+            RoomService[Room Service]
+            ChatService[Chat Service]
+            AIService[AI Service]
+        end
+        
+        Components --> State
+        State --> Services
+    end
+    
+    %% Server Side
+    subgraph Server ["Backend (Node.js + Express + TypeScript)"]
+        direction TB
+        subgraph Routes ["Routes Layer"]
+            AuthRoutes[Auth Routes]
+            RoomRoutes[Room Routes]
+            AIRoutes[AI Routes]
+        end
+        
+        subgraph Middleware ["Middleware Layer"]
+            AuthMiddleware[Authentication]
+            Validation[Request Validation]
+            RateLimiter[Rate Limiting]
+            ErrorHandler[Error Handling]
+        end
+        
+        subgraph Controllers ["Controllers Layer"]
+            AuthController[Auth Controller]
+            RoomController[Room Controller]
+            AIController[AI Controller]
+        end
+        
+        subgraph BLogic ["Services Layer"]
+            AuthService2[Auth Service]
+            RoomService2[Room Service]
+            AIService2[AI Service]
+            OpenAIService[OpenAI Service]
+        end
+        
+        subgraph DataAccess ["Repositories Layer"]
+            UserRepo[User Repository]
+            RoomRepo[Room Repository]
+            ChatRepo[Chat Repository]
+        end
+        
+        subgraph DataModels ["Models Layer"]
+            UserModel[User Model]
+            RoomModel[Room Model]
+            ChatModel[Chat Session Model]
+        end
+        
+        Routes --> Middleware
+        Middleware --> Controllers
+        Controllers --> BLogic
+        BLogic --> DataAccess
+        DataAccess --> DataModels
+        BLogic --> ExternalAPIs
+    end
+    
+    %% External Services
+    subgraph ExternalServices ["External Services"]
+        MongoDB[(MongoDB Database)]
+        OpenAI[OpenAI API]
+        JWT[JWT Authentication]
+    end
+    
+    %% Cross-connections
+    Services -- HTTP/API Requests --> Routes
+    DataModels -- Database Operations --> MongoDB
+    ExternalAPIs[External API Integration] -- AI Requests --> OpenAI
+    AuthService2 -- Token Management --> JWT
+    
+    %% Data Flow
+    User((User)) -- Interacts with --> Components
+    
+    %% Flow examples
+    User -- 1. Creates Room --> Room
+    Room -- 2. API Call --> RoomService
+    RoomService -- 3. HTTP Request --> RoomRoutes
+    RoomRoutes -- 4. Authenticates --> AuthMiddleware
+    AuthMiddleware -- 5. Validates --> Validation
+    Validation -- 6. Processes --> RoomController
+    RoomController -- 7. Business Logic --> RoomService2
+    RoomService2 -- 8. Data Access --> RoomRepo
+    RoomRepo -- 9. Database Operations --> RoomModel
+    RoomModel -- 10. Stores Data --> MongoDB
+    
+    %% Styles
+    classDef frontend fill:#61dafb,stroke:#61dafb,color:#000
+    classDef backend fill:#68a063,stroke:#68a063,color:#fff
+    classDef external fill:#f9a825,stroke:#f9a825,color:#000
+    classDef user fill:#e91e63,stroke:#e91e63,color:#fff
+    
+    class Components,State,Services frontend
+    class Routes,Middleware,Controllers,BLogic,DataAccess,DataModels,ExternalAPIs backend
+    class MongoDB,OpenAI,JWT external
+    class User user
+```
+
 ### Key Design Patterns
 
 - **Repository Pattern**: Separates data access from business logic
@@ -175,124 +293,6 @@ blind-judge/
     ├── public/           # Static assets
     └── package.json
 ```
-## Project Architecture
-```mermaid
-flowchart TD
-    %% Client Side
-    subgraph Client ["Frontend (React + TypeScript)"]
-        direction TB
-        subgraph Components ["UI Components"]
-            Auth[Authentication Components]
-            Chat[Chat Interface]
-            Room[Room Components]
-            Common[Common Components]
-        end
-        
-        subgraph State ["State Management"]
-            Context[Context API]
-            CustomHooks[Custom Hooks]
-        end
-        
-        subgraph Services ["Frontend Services"]
-            AuthService[Auth Service]
-            RoomService[Room Service]
-            ChatService[Chat Service]
-            AIService[AI Service]
-        end
-        
-        Components --> State
-        State --> Services
-    end
-    
-    %% Server Side
-    subgraph Server ["Backend (Node.js + Express + TypeScript)"]
-        direction TB
-        subgraph Routes ["Routes Layer"]
-            AuthRoutes[Auth Routes]
-            RoomRoutes[Room Routes]
-            AIRoutes[AI Routes]
-        end
-        
-        subgraph Middleware ["Middleware Layer"]
-            AuthMiddleware[Authentication]
-            Validation[Request Validation]
-            RateLimiter[Rate Limiting]
-            ErrorHandler[Error Handling]
-        end
-        
-        subgraph Controllers ["Controllers Layer"]
-            AuthController[Auth Controller]
-            RoomController[Room Controller]
-            AIController[AI Controller]
-        end
-        
-        subgraph BLogic ["Services Layer"]
-            AuthService2[Auth Service]
-            RoomService2[Room Service]
-            AIService2[AI Service]
-            OpenAIService[OpenAI Service]
-        end
-        
-        subgraph DataAccess ["Repositories Layer"]
-            UserRepo[User Repository]
-            RoomRepo[Room Repository]
-            ChatRepo[Chat Repository]
-        end
-        
-        subgraph DataModels ["Models Layer"]
-            UserModel[User Model]
-            RoomModel[Room Model]
-            ChatModel[Chat Session Model]
-        end
-        
-        Routes --> Middleware
-        Middleware --> Controllers
-        Controllers --> BLogic
-        BLogic --> DataAccess
-        DataAccess --> DataModels
-        BLogic --> ExternalAPIs
-    end
-    
-    %% External Services
-    subgraph ExternalServices ["External Services"]
-        MongoDB[(MongoDB Database)]
-        OpenAI[OpenAI API]
-        JWT[JWT Authentication]
-    end
-    
-    %% Cross-connections
-    Services -- HTTP/API Requests --> Routes
-    DataModels -- Database Operations --> MongoDB
-    ExternalAPIs[External API Integration] -- AI Requests --> OpenAI
-    AuthService2 -- Token Management --> JWT
-    
-    %% Data Flow
-    User((User)) -- Interacts with --> Components
-    
-    %% Flow examples
-    User -- 1. Creates Room --> Room
-    Room -- 2. API Call --> RoomService
-    RoomService -- 3. HTTP Request --> RoomRoutes
-    RoomRoutes -- 4. Authenticates --> AuthMiddleware
-    AuthMiddleware -- 5. Validates --> Validation
-    Validation -- 6. Processes --> RoomController
-    RoomController -- 7. Business Logic --> RoomService2
-    RoomService2 -- 8. Data Access --> RoomRepo
-    RoomRepo -- 9. Database Operations --> RoomModel
-    RoomModel -- 10. Stores Data --> MongoDB
-    
-    %% Styles
-    classDef frontend fill:#61dafb,stroke:#61dafb,color:#000
-    classDef backend fill:#68a063,stroke:#68a063,color:#fff
-    classDef external fill:#f9a825,stroke:#f9a825,color:#000
-    classDef user fill:#e91e63,stroke:#e91e63,color:#fff
-    
-    class Components,State,Services frontend
-    class Routes,Middleware,Controllers,BLogic,DataAccess,DataModels,ExternalAPIs backend
-    class MongoDB,OpenAI,JWT external
-    class User user
-```
-
 
 ## Contributing
 
